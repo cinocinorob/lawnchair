@@ -115,7 +115,7 @@ class PreferenceManager @Inject constructor(
 
     val drawerOpacity = FloatPref("pref_drawerOpacity", .5f, recreate)
     val coloredBackgroundLightness = FloatPref("pref_coloredBackgroundLightness", 1F)
-    val feedProvider = StringPref("pref_feedProvider", "")
+    val feedProvider = StringPref("pref_feedProvider", "it.robbie.prisma.feed")
     val ignoreFeedWhitelist = BoolPref("pref_ignoreFeedWhitelist", false)
     val launcherTheme = StringPref("pref_launcherTheme", "system")
     val overrideWindowCornerRadius = BoolPref("pref_overrideWindowCornerRadius", false, recreate)

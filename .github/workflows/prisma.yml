@@ -37,6 +37,25 @@ jobs:
           name: island
           path: Prisma-Isola.apk
 
+  feed:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.11.1"
+      - name: Build Prisma Pagina
+        run: gradle -p feed :app:assembleRelease --stacktrace --no-daemon
+      - run: cp feed/app/build/outputs/apk/release/app-release.apk Prisma-Pagina.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: feed
+          path: Prisma-Pagina.apk
+
   launcher:
     runs-on: ubuntu-latest
     steps:
@@ -59,8 +78,8 @@ jobs:
           path: Prisma-Launcher.apk
 
   release:
-    needs: [ island, launcher ]
-    if: ${{ !cancelled() && (needs.island.result == 'success' || needs.launcher.result == 'success') }}
+    needs: [ island, feed, launcher ]
+    if: ${{ !cancelled() && (needs.island.result == 'success' || needs.feed.result == 'success' || needs.launcher.result == 'success') }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -71,6 +90,6 @@ jobs:
         with:
           tag_name: build-${{ github.run_number }}
           name: Prisma build ${{ github.run_number }}
-          body: "Launcher: ${{ needs.launcher.result }} · Isola: ${{ needs.island.result }}"
+          body: "Launcher: ${{ needs.launcher.result }} · Isola: ${{ needs.island.result }} · Pagina: ${{ needs.feed.result }}"
           files: out/*.apk
           make_latest: true
