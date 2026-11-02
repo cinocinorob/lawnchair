@@ -1,0 +1,76 @@
+name: Prisma build
+
+on:
+  push:
+    branches: [ "16-dev" ]
+    paths-ignore: [ "**.md" ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: prisma-build
+  cancel-in-progress: true
+
+env:
+  PRISMA_BUILD: ${{ github.run_number }}
+  PRISMA_PW: prismaRobbie2026
+
+jobs:
+  island:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.11.1"
+      - name: Build Prisma Isola
+        run: gradle -p island :app:assembleRelease --stacktrace --no-daemon
+      - run: cp island/app/build/outputs/apk/release/app-release.apk Prisma-Isola.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: island
+          path: Prisma-Isola.apk
+
+  launcher:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: true
+      - uses: actions/setup-java@v4
+        with:
+          distribution: zulu
+          java-version: 21
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Signing
+        run: printf 'storePassword=%s\nkeyAlias=prisma\nkeyPassword=%s\nstoreFile=prisma-release.jks\n' "$PRISMA_PW" "$PRISMA_PW" > keystore.properties
+      - name: Build Prisma Launcher
+        run: ./gradlew assembleLawnWithQuickstepGithubRelease --no-daemon
+      - run: cp "$(find build/outputs/apk -name '*.apk' | head -1)" Prisma-Launcher.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: launcher
+          path: Prisma-Launcher.apk
+
+  release:
+    needs: [ island, launcher ]
+    if: ${{ !cancelled() && (needs.island.result == 'success' || needs.launcher.result == 'success') }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: out
+          merge-multiple: true
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: Prisma build ${{ github.run_number }}
+          body: "Launcher: ${{ needs.launcher.result }} · Isola: ${{ needs.island.result }}"
+          files: out/*.apk
+          make_latest: true
