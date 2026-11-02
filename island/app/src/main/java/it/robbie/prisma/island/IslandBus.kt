@@ -85,4 +85,5 @@ object Prefs {
     const val NOTIFS = "notifs"
     const val CHARGING = "charging"
     const val IDLE = "idle"
+    const val HIDE_BANNERS = "hide_banners"
 }

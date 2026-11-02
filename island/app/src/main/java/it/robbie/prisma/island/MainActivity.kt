@@ -20,6 +20,56 @@ class MainActivity : Activity() {
 
     private lateinit var a11yStatus: TextView
     private lateinit var notifStatus: TextView
+    private lateinit var bannerStatus: TextView
+    private lateinit var bannerSwitch: Switch
+
+    private val shizukuListener = rikka.shizuku.Shizuku.OnRequestPermissionResultListener { code, result ->
+        if (code == Banners.REQ) runOnUiThread {
+            if (result == android.content.pm.PackageManager.PERMISSION_GRANTED) doGrant()
+            else bannerStatus.text = "⚠️ Permesso Shizuku negato"
+        }
+    }
+
+    private fun doGrant() {
+        bannerStatus.text = "Concessione in corso…"
+        Thread {
+            val err = Banners.grantViaShizuku(this)
+            runOnUiThread {
+                if (err == null) {
+                    Prefs.set(this, Prefs.HIDE_BANNERS, true)
+                    Banners.setSystemBanners(this, false)
+                }
+                refreshBanners(err)
+            }
+        }.start()
+    }
+
+    private fun setupBanners() {
+        when {
+            Banners.hasSecure(this) -> {}
+            !Banners.shizukuRunning() -> {
+                bannerStatus.text = "⚠️ Shizuku non è attivo: installalo e avvialo con il debug wireless, poi torna qui."
+                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse("https://shizuku.rikka.app/download/")))
+            }
+            !Banners.shizukuGranted() -> rikka.shizuku.Shizuku.requestPermission(Banners.REQ)
+            else -> doGrant()
+        }
+    }
+
+    private fun refreshBanners(err: String? = null) {
+        val secure = Banners.hasSecure(this)
+        bannerSwitch.isEnabled = secure
+        bannerSwitch.setOnCheckedChangeListener(null)
+        bannerSwitch.isChecked = secure && !Banners.systemBannersOn(this)
+        bannerSwitch.setOnCheckedChangeListener { _, v ->
+            Prefs.set(this, Prefs.HIDE_BANNERS, v); Banners.setSystemBanners(this, !v); refreshBanners()
+        }
+        bannerStatus.text = when {
+            err != null -> "⚠️ Errore: $err"
+            secure -> "✅ Permesso concesso (resta anche dopo i riavvii)"
+            else -> "Serve Shizuku una volta sola per concedere il permesso."
+        }
+    }
 
     private fun dp(v: Int) = (v * resources.displayMetrics.density).toInt()
 
@@ -89,9 +139,24 @@ class MainActivity : Activity() {
             })
         }.also { col.addView(it) }
 
+        text("4 · Notifiche solo nell'isola", 18f, true)
+        bannerStatus = text("")
+        button("Concedi permesso con Shizuku") { setupBanners() }
+        bannerSwitch = Switch(this).apply {
+            text = "Nascondi i banner di sistema"; textSize = 16f
+            setPadding(0, dp(10), 0, dp(10))
+        }.also { col.addView(it) }
+        text("Se disattivi l'isola, rimetti questo interruttore su spento per riavere i banner di Android.", 13f)
+
         text("Tocca l'isola: espande i controlli musicali o apre la notifica.", 13f).gravity = Gravity.START
 
         setContentView(ScrollView(this).apply { addView(col) })
+        try { rikka.shizuku.Shizuku.addRequestPermissionResultListener(shizukuListener) } catch (_: Throwable) {}
+    }
+
+    override fun onDestroy() {
+        try { rikka.shizuku.Shizuku.removeRequestPermissionResultListener(shizukuListener) } catch (_: Throwable) {}
+        super.onDestroy()
     }
 
     override fun onResume() {
@@ -108,5 +173,6 @@ class MainActivity : Activity() {
             ComponentName.unflattenFromString(it) == me
         }
         a11yStatus.text = if (aOk) "✅ Isola attiva" else "⚠️ Isola non attiva in Accessibilità"
+        refreshBanners()
     }
 }

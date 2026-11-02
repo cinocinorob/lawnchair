@@ -83,6 +83,7 @@ class IslandService : AccessibilityService(), IslandBus.Listener {
             addAction(Intent.ACTION_POWER_CONNECTED)
         }
         registerReceiver(power, f, Context.RECEIVER_EXPORTED)
+        if (Prefs.get(this, Prefs.HIDE_BANNERS, false)) Banners.setSystemBanners(this, false)
         showDefault(force = true)
     }
 
@@ -90,6 +91,8 @@ class IslandService : AccessibilityService(), IslandBus.Listener {
     override fun onInterrupt() {}
 
     override fun onDestroy() {
+        // sicurezza: se l'isola si spegne, i banner di Android tornano
+        if (Prefs.get(this, Prefs.HIDE_BANNERS, false)) Banners.setSystemBanners(this, true)
         IslandBus.remove(this)
         try { unregisterReceiver(power) } catch (_: Exception) {}
         anim?.cancel()
